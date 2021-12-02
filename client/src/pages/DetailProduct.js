@@ -31,6 +31,19 @@ export default function DetailProduct() {
   });
 
   // Create config Snap payment page with useEffect here ...
+  useEffect(() => {
+    const midtransScriptURL = "https://app.sandbox.midtrans.com/snap/snap.js"
+    const midtransClientKey = "SB-Mid-client-A3OQbgr_e6AlRfQc"
+    const scriptElm = document.createElement('script')
+
+    scriptElm.src = midtransScriptURL
+    scriptElm.setAttribute('data-client-key', midtransClientKey)
+
+    document.body.appendChild(scriptElm)
+    return () => {
+      document.body.removeChild(scriptElm)
+    }
+  }, [])
 
   const handleBuy = useMutation(async () => {
     try {
@@ -58,8 +71,27 @@ export default function DetailProduct() {
       const response = await api.post("/transaction", config);
 
       // Create variabel for store token payment from response here ...
-
+      const token = response.payment.token
       // Init Snap for display payment page with token here ...
+
+      window.snap.pay(token,{
+        onSuccess: function(result){
+          /* You may add your own implementation here */
+          alert("payment success!"); console.log(result);
+        },
+        onPending: function(result){
+          /* You may add your own implementation here */
+          alert("wating your payment!"); console.log(result);
+        },
+        onError: function(result){
+          /* You may add your own implementation here */
+          alert("payment failed!"); console.log(result);
+        },
+        onClose: function(){
+          /* You may add your own implementation here */
+          alert('you closed the popup without finishing the payment');
+        }
+      })
     } catch (error) {
       console.log(error);
     }
