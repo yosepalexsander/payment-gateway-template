@@ -4,6 +4,7 @@ const midtransClient = require("midtrans-client");
 const convertRupiah = require("rupiah-format");
 
 // Import nodemailer here ...
+const nodemailer = require('nodemailer')
 
 exports.getTransactions = async (req, res) => {
   try {
@@ -174,6 +175,7 @@ exports.notification = async (req, res) => {
         // TODO set transaction status on your database to 'challenge'
         // and response with 200 OK
         // Init sendEmail function with status "pending" and order id here ...
+        sendEmail("pending", orderId)
         handleTransaction("pending", orderId);
         res.status(200);
       } else if (fraudStatus == "accept") {
@@ -181,6 +183,7 @@ exports.notification = async (req, res) => {
         // and response with 200 OK
         // Init sendEmail function with status "success" and order id here ...
         updateProduct(orderId);
+        sendEmail("success", orderId);
         handleTransaction("success", orderId);
         res.status(200);
       }
@@ -189,6 +192,7 @@ exports.notification = async (req, res) => {
       // and response with 200 OK
       // Init sendEmail function with status "success" and order id here ...
       updateProduct(orderId);
+      sendEmail("success", orderId);
       handleTransaction("success", orderId);
       res.status(200);
     } else if (
@@ -199,12 +203,14 @@ exports.notification = async (req, res) => {
       // TODO set transaction status on your database to 'failure'
       // and response with 200 OK
       // Init sendEmail function with status "failed" and order id here ...
-      handleTransaction("failed", orderId);
+      sendEmail("failure", orderId);
+      handleTransaction("failure", orderId);
       res.status(200);
     } else if (transactionStatus == "pending") {
       // TODO set transaction status on your database to 'pending' / waiting payment
       // and response with 200 OK
       // Init sendEmail function with status "pending" and order id here ...
+      sendEmail("pending", orderId);
       handleTransaction("pending", orderId);
       res.status(200);
     }
@@ -243,3 +249,75 @@ const updateProduct = async (orderId) => {
 };
 
 // Create function receive two params (status,orderId) for handle send email here ...
+const sendEmail = async(status, transactionId) => {
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.SYSTEM_EMAIL,
+      pass: process.env.SYSTEM_PASSWORD
+    }
+  })
+
+  let data = await transaction.findOne({
+    where: {
+      id: transactionId
+    },
+    attributes: {
+      exclude: ["createdAt", "updatedAt"]
+    },
+    include: [{
+      model: user,
+      as: 'buyer',
+      attributes: {
+        exclude: ["createdAt", "updatedAt", "password", "status"]
+      },
+    },
+    {
+      model: product,
+      as: "product",
+      attributes : {
+        exclude:["createdAt", "updatedAt", "idUser", "qty", "price", "desc"]
+      }
+    }]
+  })
+  data = JSON.parse(JSON.stringify(data))
+
+  const mailOptions ={
+    from: process.env.SYSTEM_EMAIL,
+    to: data.buyer.email,
+    subject: "Payment Status",
+    html: `
+      <head>
+        <style>
+          h2 {
+            text-align: center; 
+            background-color: tomato; 
+            color: whitesmoke;
+          }
+          ul {
+            list-style-type: none;
+          }
+          li {
+            color: gray;
+          }
+        </style>
+      </head>
+      <body>
+        <h2>Product payment :</h2>
+        <ul>
+          <li>Name: ${data.product.name}</li>
+          <li>Total: ${Intl.NumberFormat('id-ID').format(data.price)}</li>
+          <li>Status: <strong>${status}</strong></li>
+        </ul>
+      </body>
+    `
+  }
+
+  if (data.status != status) {
+    transporter.sendMail(mailOptions, (err, info) => {
+      if (err) return console.log(err)
+
+      console.log('Email sent: ', info.response)
+    })
+  }
+}
